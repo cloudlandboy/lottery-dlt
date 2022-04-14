@@ -34,15 +34,6 @@ const drawRules = {
 
 
 (async function () {
-    // if (true) {
-    //     let result = getCombination([1, 2, 3, 4, 5, 6])
-    //     //遍历result的list属性，使用for of循环
-    //     for (let item of result) {
-    //         console.log(item);
-    //     }
-
-    //     return;
-    // }
     let lastDrawDate = getLastDrawDate();
     console.log("最后一次开奖日期：" + lastDrawDate);
     var data = {};
@@ -83,18 +74,33 @@ const drawRules = {
     let runlimit = 1;
     let grade = 9;
     const randomNumber = ("Y" == yesOrNo.toUpperCase());
+    const yearNumbers = {};
 
     if (randomNumber) {
-        mode = await waitForInput("选择随机模式：\n1：随机n次\n2：历史x等奖次数大于n次\n> ");
+        mode = await waitForInput("选择随机模式：\n1：随机n次\n2：历史x等奖次数大于n次\n3：统计n年号的一等奖\n> ");
         //mode必须是1或2
-        assert(mode == 1 || mode == 2, "随机模式错误");
+        assert(mode == 1 || mode == 2 || mode == 3, "随机模式错误");
         if (mode == "1") {
             runlimit = parseInt(await waitForInput("请输入随机次数："));
-        } else {
+        } else if (mode == "2") {
             grade = parseInt(await waitForInput("请输入需要几等奖："));
             runlimit = parseInt(await waitForInput("请输入需要几次："));
+        } else if (mode == "3") {
+            grade = parseInt(await waitForInput("请输入年号，例:22："));
+            runlimit = 0;
+            for (const number in data.drawNumberCount) {
+                for (const num of data.drawNumberCount[number].drawNums) {
+                    if (num.substr(0, 2) == grade) {
+                        runlimit++;
+                        yearNumbers[parseInt(num.substr(2))] = number;
+                    }
+                }
+            }
         }
     }
+
+
+    const filter = new Set();
 
     while (true) {
         runCount++;
@@ -102,8 +108,14 @@ const drawRules = {
             let inputF = [];
             let inputB = [];
             if (randomNumber) {
-                inputF = getRandomNumber(1, 35, 5);
-                inputB = getRandomNumber(1, 12, 2);
+                if (mode == 3) {
+                    let numbers = yearNumbers[runCount].split(" ");
+                    inputF = numbers.slice(0, 5);
+                    inputB = numbers.slice(5);
+                } else {
+                    inputF = getRandomNumber(1, 35, 5);
+                    inputB = getRandomNumber(1, 12, 2);
+                }
             } else {
                 inputF = await waitForInput("请输入前区号码(每个号码之间用空格隔开)：");
                 inputF = formatNumer(inputF, 1, 35, 5);
@@ -111,8 +123,6 @@ const drawRules = {
                 inputB = formatNumer(inputB, 1, 12, 2);
             }
 
-
-            console.log(`===================================== ${inputF.join(" ")} + ${inputB.join(" ")} ====================================`);
             const historyDraw = {};
             for (let number in data.drawNumberCount) {
                 let inputFrontDrawNumbers = [];
@@ -160,7 +170,14 @@ const drawRules = {
                 }
             }
 
+            let numberCode = inputF.join(" ") + " + " + inputB.join(" ");
+            if (filter.has(numberCode)) {
+                continue
+            } else {
+                filter.add(numberCode);
+            }
 
+            console.log(`===================================== ${numberCode} ====================================`);
             //遍历对象
             for (let key in historyDraw) {
                 console.log("历史 " + historyDraw[key].label + " 中奖次数：" + historyDraw[key].total);
@@ -174,8 +191,10 @@ const drawRules = {
                 if (mode == "1" && runCount >= runlimit) {
                     runlimit = parseInt(await waitForInput("请输入随机次数："));
                     runCount = 0;
-                } else if (mode == "2" && historyDraw[grade] && historyDraw[grade].total == runlimit) {
+                } else if (mode == "2" && historyDraw[grade] && historyDraw[grade].total >= runlimit) {
                     console.log("总计：" + runCount + "次");
+                    await waitForInput("按回车键继续...");
+                } else if (mode == "3" && runCount >= runlimit) {
                     break;
                 }
             }
@@ -295,7 +314,7 @@ function getLastDrawDate() {
     }
 
     if (!lastDrawDay) {
-        return dateFns.format(dateFns.subDays(now,2), "yyyy-MM-dd");
+        return dateFns.format(dateFns.subDays(now, 2), "yyyy-MM-dd");
     }
 
     if (currentDay == lastDrawDay) {
@@ -304,18 +323,6 @@ function getLastDrawDate() {
 
     now = dateFns.subDays(now, currentDay - lastDrawDay)
     return dateFns.format(now, "yyyy-MM-dd");
-}
-
-//数字的不重复组合
-function getCombination(arr) {
-    var r = [];
-    (function f(t, a, n) {
-        if (n == 0) return r.push(t);
-        for (var i = 0, l = a.length; i <= l - n; i++) {
-            f(t.concat(a[i]), a.slice(i + 1), n - 1);
-        }
-    })([], arr, arr.length);
-    return r;
 }
 
 
